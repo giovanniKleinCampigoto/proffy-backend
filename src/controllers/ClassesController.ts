@@ -4,11 +4,9 @@ import db from "../database/connection";
 
 import convertHourToMinutes from "../utils/convertHourToMinutes";
 
-interface ScheduleItem {
-  week_day: number;
-  from: string;
-  to: string;
-}
+import UserRepository from "../repository/UserRepository";
+import ClassRepository from "../repository/ClassRepository";
+import ScheduleRepository from "../repository/ScheduleRepository";
 
 export default class ClassesController {
   async index(request: Request, response: Response) {
@@ -43,49 +41,28 @@ export default class ClassesController {
   }
 
   async create(request: Request, response: Response) {
-    const { name, avatar, whatsapp, bio, subject, cost, schedule } = request.body;
+    const { name, avatar, whatsapp, bio, subject, cost, schedule, email, password } = request.body;
 
-    const trx = await db.transaction();
+    const userRepository = new UserRepository();
+    const classRepository = new ClassRepository();
+    const scheduleRepository = new ScheduleRepository();
 
-    try {
-      const insertedUsersIds = await trx("users").insert({
-        name,
-        avatar,
-        whatsapp,
-        bio,
-      });
+    const { id: user_id } = await userRepository.createUser({
+      name,
+      avatar,
+      whatsapp,
+      bio,
+      email,
+      password,
+    });
 
-      const user_id = insertedUsersIds[0];
+    return user_id;
 
-      const insertedClassesIds = await trx("classes").insert({
-        subject,
-        cost,
-        user_id,
-      });
 
-      const class_id = insertedClassesIds[0];
-
-      const classSchedule = schedule.map((scheduleItem: ScheduleItem) => {
-        return {
-          class_id,
-          week_day: scheduleItem.week_day,
-          from: convertHourToMinutes(scheduleItem.from),
-          to: convertHourToMinutes(scheduleItem.to),
-        };
-      });
-
-      await trx("class_schedule").insert(classSchedule);
-
-      await trx.commit();
-
-      return response.status(201).send();
-    } catch (error) {
-      await trx.rollback();
-      console.error(error);
-
-      return response.status(400).json({
-        error: "Unexpected error while creating new class",
-      });
-    }
+    const classRepResponse = await classRepository.createClass({
+      subject,
+      cost,
+      user_id,
+    });
   }
 }
